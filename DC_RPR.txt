@@ -1,0 +1,373 @@
+/********************************************************************* RULE PERFORMANCE REPORT *********************************************************************/
+
+/***********************************************************************************************************************************************/
+/*********************************************************** Library definitions ***************************************************************/
+/***********************************************************************************************************************************************/
+
+%LET path_sor = 'EFRMSSOR';
+%LET user_sor = 'fcmcore';
+%LET pswd_sor = '{SAS002}0F38130553D5E82402EF42E9529EA9302006BB81';
+
+%LET path_tdr = 'EFRMSSOR';
+%LET user_tdr = 'tdrcore';
+%LET pswd_tdr = '{SAS002}0F38130553D5E82402EF42E9529EA9302006BB81';
+
+%LET path_viya = 'EFRMSSOR';
+%LET user_viya = 'VIYAPROD';
+%LET pswd_viya = '{SAS002}0F38130553D5E82402EF42E9529EA9302006BB81';
+
+libname SOR oracle path=&path_sor. user=&user_sor. password=&pswd_sor.;
+libname TDR oracle path=&path_tdr. user=&user_tdr. password=&pswd_tdr.;
+libname VIYA oracle path=&path_tdr. user=&user_viya. password=&pswd_viya.;
+
+/*********************************************************** Library definitions ***************************************************************/
+/***********************************************************************************************************************************************/
+
+/***********************************************************************************************************************************************/
+/************************************************************* Automated run *******************************************************************/
+/***********************************************************************************************************************************************/
+/* data _null_;
+call symput('dt', cats(put(%sysfunc(datetime()), datetime20.)));
+run;
+%put &dt.;
+proc printto log="/sasshare/Reports/Logs/Rule_Performace_&dt..log";
+run;
+
+DATA _NULL_;
+CALL SYMPUT('Curr_DT',put(%sysfunc(datetime()),datetime20.));
+CALL SYMPUT('Nxt_Date',cats("'",put(datepart(%sysfunc(datetime())),date11.),"'"));
+CALL SYMPUT('Nxt_Date_S',put(datepart(%sysfunc(datetime())),date9.));
+CALL SYMPUT('Curr_Date',cats("'",put(intnx('day',datepart(%sysfunc(datetime())),-1),date11.),"'"));
+CALL SYMPUT('Curr_Date_S',put(intnx('day',datepart(%sysfunc(datetime())),-1),date9.));
+run;
+
+%put &Curr_DT.;
+%put &Curr_Date.;
+%put &Nxt_Date.;
+%put &Curr_Date_S.;
+%put &Nxt_Date_S.; */
+
+/************************************************************* Automated run *******************************************************************/
+/***********************************************************************************************************************************************/
+
+
+/***********************************************************************************************************************************************/
+/*********************************************************** Section for Manual run ************************************************************/
+/***********************************************************************************************************************************************/
+/* Curr_Date: Lower range (inclusive) for the period: FORMAT: DD-MON-YYYY*/
+/* Nxt_Date: Upper range (exclusive) for the period: FORMAT: DD-MON-YYYY */
+/* Curr_Date_S: Lower range (inclusive) for the period: FORMAT: DDMONYYYY */
+/* Nxt_Date_S: Upper range (exclusive) for the period: FORMAT: DDMONYYYY */
+
+/*************************************************** Uncomment below section for Manual run *****************************************************/
+
+
+%let Curr_Date = %STR('30-JUL-2024');
+%let Nxt_Date = %STR('31-JUL-2024');
+%let Curr_Date_S = %STR(30JUL2024);
+%let Nxt_Date_S = %STR(31JUL2024);
+
+
+
+%put &Curr_DT.;
+%put &Curr_Date.;
+%put &Nxt_Date.;
+%put &Curr_Date_S.;
+%put &Nxt_Date_S.; 
+/*************************************************** Uncomment above section for Manual run *****************************************************/
+
+/***********************************************************************************************************************************************/
+/*********************************************************** Section for Manual run ************************************************************/
+
+
+
+/***********************************************************************************************************************************************/
+/*************************************************************Transaction and rules ************************************************************/
+/***********************************************************************************************************************************************/
+
+PROC SQL;
+CONNECT TO ORACLE (user=&user_sor. password=&pswd_sor. path=&path_sor.);
+Create table Temp_Trx_Cust as select * from connection to oracle (
+ select distinct
+	A.cmx_tran_id
+	,to_char (A.Rqo_Proc_Utc_Datetime + interval '4' hour , 'dd-mm-yyyy') as ALERT_DATE
+	,to_char(A.Rqo_Proc_Utc_Datetime + interval '4' hour, 'hh24:mi:ss') as ALERT_TIME
+	,B.xqo_cust_num as Customer_RIM
+	,B.rqo_tran_date as Tran_Date
+	,B.rqo_tran_time as Tran_Time
+	,B.smh_cust_type as Customer_Type
+	,B.dua_40byte_string_003 as BENEFICIARY_ACCOUNT_NUMBER
+	,B.tbt_mod_amt as Transaction_Amount
+	,B.AQO_PORT_HIER_1 as CUSTOMER_CLASS_CODE
+	,'F' as Fin_Nonfin_Ind
+	,(case when B.wax_user_fraud_x_ind  is not null then B.wax_user_fraud_x_ind else 
+	(case when B.wax_user_fraud_a_ind is not null then B.wax_user_fraud_a_ind else 
+	(case when B.wax_user_fraud_c_ind  is not null then B.wax_user_fraud_c_ind else '' end) end) end) as Confirmed_Marked_Flag
+
+
+from fcmcore.fcm_rules_fired A,
+	tdrcore.fcm_csbf B 
+where A.rqo_proc_utc_datetime + interval '4' hour >= &curr_date.
+	and A.rqo_proc_utc_datetime + interval '4' hour < &Nxt_Date.
+	and A.cmx_tran_id = B.cmx_tran_id	
+union all 
+select distinct
+	A.cmx_tran_id 
+	,to_char (A.Rqo_Proc_Utc_Datetime + interval '4' hour , 'dd-mm-yyyy') as ALERT_DATE
+	,to_char(A.Rqo_Proc_Utc_Datetime + interval '4' hour, 'hh24:mi:ss') as ALERT_TIME
+	,B.xqo_cust_num as Customer_RIM
+	,B.rqo_tran_date as Tran_Date
+	,B.rqo_tran_time as Tran_Time
+	,B.smh_cust_type as Customer_Type
+	,B.dua_40byte_string_003 as BENEFICIARY_ACCOUNT_NUMBER
+	,0 as Transaction_Amount
+	,B.AQO_PORT_HIER_1 as CUSTOMER_CLASS_CODE
+	,'N' as Fin_Nonfin_Ind
+	,(case when B.wax_user_fraud_x_ind  is not null then B.wax_user_fraud_x_ind else 
+	(case when B.wax_user_fraud_a_ind is not null then B.wax_user_fraud_a_ind else 
+	(case when B.wax_user_fraud_c_ind  is not null then B.wax_user_fraud_c_ind  else '' end) end) end) as Confirmed_Marked_Flag
+from fcmcore.fcm_rules_fired A,
+	tdrcore.fcm_csnm B 
+where 
+	 A.rqo_proc_utc_datetime + interval '4' hour >= &Curr_date.
+	and A.rqo_proc_utc_datetime + interval '4' hour < &Nxt_Date.
+	and A.cmx_tran_id = B.cmx_tran_id) ;
+disconnect from oracle;
+quit;
+
+PROC SQL;
+CONNECT TO ORACLE (user=&user_sor. password=&pswd_sor. path=&path_sor.);
+Create table temp_trx as select * from connection to oracle (  select distinct ZZ.cmx_tran_id, XX.Alert_Id, ZZ.Rqo_Proc_Utc_Datetime,ZZ.rule_id, ZZ.rule_name, ZZ.rule_desc from
+		(select A.cmx_tran_id, A.Alert_Id,A.Rqo_Proc_Utc_Datetime, B.rule_id, B.rule_name, B.rule_desc from
+		fcmcore.fcm_rules_fired A,
+		fcmcore.fcm_build_package C,
+		fcmcore.fcm_rule B
+		
+		where A.build_id = C.Build_ID
+		and A.slot_id = C.slot_id
+		and C.Rule_Id = B.Rule_id
+		and A.Alert_id in (-1)
+		and A.rqo_proc_utc_datetime + interval '4' hour >= &Curr_Date.
+		and A.rqo_proc_utc_datetime + interval '4' hour < &Nxt_Date.) ZZ
+		left join 
+		( select A.cmx_tran_id, A.Alert_Id,A.Rqo_Proc_Utc_Datetime, B.rule_id, B.rule_name, B.rule_desc from
+		fcmcore.fcm_rules_fired A,
+		fcmcore.fcm_build_package C,
+		fcmcore.fcm_rule B
+		
+		where A.build_id = C.Build_ID
+		and A.slot_id = C.slot_id
+		and C.Rule_Id = B.Rule_id
+		and A.Alert_id not in (-1)
+		and B.RULE_NAME like 'Q_%'
+		and A.rqo_proc_utc_datetime + interval '4' hour >= &Curr_Date. 
+		and A.rqo_proc_utc_datetime + interval '4' hour < &Nxt_Date.) XX  
+		on ZZ.cmx_Tran_ID = XX.Cmx_Tran_ID
+) ;
+disconnect from oracle;
+quit;
+
+proc sql;
+Create table temp_trx_alerts as select 
+			A.*,B.*
+	from temp_trx A,
+			 temp_trx_cust B
+		where A.cmx_tran_id = B.cmx_tran_id;
+quit;
+
+
+
+/***********************************************************************************************************************************************/
+/***********************************************Alerts action call result: Intermediate and Final Action****************************************/
+/***********************************************************************************************************************************************/
+
+/******** filtering alerts action based on timestamp and categorising them based on call results *********/
+proc sql;
+create table temp_alert_action as select
+	 A.Alert_ID
+	 ,A.Alert_Action_ID
+	 , A.Action_Timestamp
+	 , A.Action_Type
+	 ,B.Result_Name
+	 ,A.Alert_status
+	 ,C.QUEUE_NAME 
+	 ,(case when strip(upcase(B.Result_TYPE)) in ('POSITIVE','NEGATIVE') then 'Final' 
+			when strip(upcase(B.Result_Type)) in ('UNKNOWN')
+									 then 'Intermediate'  end) as Assessment_Type 
+from 
+	sor.fcm_alert_action A,
+	sor.fcm_call_result B,
+	sor.fcm_queue C
+where 
+	A.result_id = B.result_id 
+	and B.logical_del_ind = '0'
+	and A.action_type in ('ANALYST ACTION')
+	and C.QUEUE_ID = A.QUEUE_ID
+  	and datepart(A.Action_timestamp) >= "&Curr_Date_S."D 
+  	and datepart(A.Action_timestamp) <= "&Nxt_Date_S."D 
+ 	order by alert_ID, action_timestamp;
+ quit;
+ 	
+ /******** Partitioning of  alerts action based assessment type *********/
+proc sql;
+create table temp_alert_action_IA as select * from temp_alert_action where Assessment_Type = 'Intermediate';
+create table temp_alert_action_FA as select * from temp_alert_action where Assessment_Type = 'Final';
+quit;
+/* Creating Column as Intermediate Assesment and Final Assesment */
+proc sql;
+create table temp_alert_action_IA_2 as select alert_id,alert_action_id,action_timestamp, 
+result_name as InterMediate_Assessment, alert_status, queue_name from temp_alert_action_IA;
+
+create table temp_alert_action_FA_2 as select alert_id,alert_action_id,action_timestamp, 
+result_name as Final_Assessment, alert_status, queue_name from temp_alert_action_FA;
+quit;
+
+/* For each intermediate action getting earliest final action */
+proc sql;
+create table temp_alert_action_2 as select A.Alert_id as Alert_id_I, A.Alert_action_id as Alert_action_Id_I,
+A.Action_Timestamp as Action_Timestamp_I, A.alert_status as alert_status_I, A.queue_name as Queue_name_I, B.Action_Timestamp as Action_Timestamp_F, 
+B.Alert_id as Alert_id_F, B.Alert_action_id as Alert_action_Id_F,
+A.Intermediate_Assessment, B.Final_Assessment
+from temp_alert_action_IA_2 A left join temp_alert_action_FA_2 B on A.Alert_id = B.Alert_id;
+quit;
+
+proc sql;
+create table temp_alert_action_3 as select * from 
+temp_alert_action_2 where (Action_Timestamp_F > Action_Timestamp_I) or (Action_Timestamp_F is null)
+union
+select alert_id_i, alert_action_id_i, action_timestamp_i, alert_status_i, queue_name_i, . as action_timestamp_f, . as alert_id_f, . as alert_action_id_f, intermediate_assessment, '' as final_assessment
+from temp_alert_action_2 where (Action_Timestamp_F < Action_Timestamp_I) and (Action_Timestamp_F is not null);
+quit;
+
+
+proc sql;
+create table temp_alert_action_4 as select distinct Alert_ID_I, Alert_ACTION_ID_I, 
+min(alert_action_id_f) as alert_action_id_F from  temp_alert_action_3 group by alert_id_i, alert_action_id_i;
+quit;
+
+
+proc sql;
+create table temp_alert_action_5 as select distinct A.* from temp_alert_action_3 A right join temp_alert_action_4 B on A.alert_id_i =B.Alert_id_i
+and A.Alert_Action_ID_I = B.Alert_Action_ID_I and A.Alert_action_id_f=B.Alert_Action_ID_F;
+quit;
+
+
+/* Getting all alerts action including intermediate and final assesment */
+
+
+proc sql;
+Create table Final_Alert_Action as select A.Alert_ID, A.Alert_Action_ID,A.Action_Timestamp,
+A.Final_Assessment as Actual_Assessment, A.Final_Assessment, A.alert_status, A.queue_name
+from temp_alert_action_FA_2 A union 
+select B.Alert_ID_I as Alert_ID, B.Alert_Action_ID_I as Alert_Action_ID, B.Action_Timestamp_I as Action_Timestamp,
+B.Intermediate_Assessment as Actual_Assessment, B.Final_Assessment, B.alert_status_I as alert_status, B.queue_name_I as queue_name
+from temp_Alert_Action_5 b;
+quit;
+
+
+
+
+/***********************************************************************************************************************************************/
+/**************************************Transactions and recent alert actions with final assesment***********************************************/
+/***********************************************************************************************************************************************/
+proc sql;
+create table temp_alert_transactions_1 as select distinct A.cmx_tran_id, A.rqo_proc_utc_datetime,
+B.Alert_id,B.Alert_Action_Id,B.Action_Timestamp
+ from temp_trx_alerts A left join Final_Alert_Action B
+on A.Alert_id = B.Alert_ID;
+quit;
+
+proc sql;
+create table temmp_alert_transactions_2 as select distinct * from 
+temp_alert_transactions_1 where Action_timestamp > rqo_proc_utc_datetime;
+quit;
+
+proc sql;
+create table temp_alert_transactions_3 as select distinct cmx_tran_id, rqo_proc_utc_datetime,
+min(alert_action_id) as alert_action_id from temmp_alert_transactions_2 group by cmx_tran_id,alert_id;
+quit;
+
+
+proc sql;
+create table Temp_Rule_Performance as select A.*,B.* from temp_trx_alerts A, Final_Alert_Action B,
+temp_alert_transactions_3 C where A.cmx_tran_id = C.cmx_tran_id and C.alert_action_id = B.alert_action_id;
+quit;
+
+proc sql;
+create table Rule_Performance as select
+RULE_ID
+,RULE_NAME
+,RULE_DESC
+,ALERT_ID
+,ALERT_STATUS
+,DATEPART(TRAN_DATE) AS TRAN_DATE FORMAT=DATE9.
+,TIMEPART(TRAN_TIME) AS TRAN_TIME FORMAT=TIME8.
+,ALERT_DATE
+,ALERT_TIME
+,QUEUE_NAME
+,CUSTOMER_TYPE
+,CUSTOMER_CLASS_CODE
+,CUSTOMER_RIM
+,BENEFICIARY_ACCOUNT_NUMBER
+,TRANSACTION_AMOUNT
+,FIN_NONFIN_IND
+,CMX_TRAN_ID
+,Confirmed_Marked_Flag
+,ACTUAL_ASSESSMENT
+,FINAL_ASSESSMENT
+,%SYSFUNC(DATETIME()) AS LAST_MODIFIED_DATETIME
+from Temp_Rule_Performance;
+quit;
+
+/***********************************************************************************************************************************************/
+/**************************************************************Write report to DB***************************************************************/
+/***********************************************************************************************************************************************/
+
+proc sql;
+create table Rule_Performance_INSERT as select
+RULE_ID
+,RULE_NAME
+,RULE_DESC
+,ALERT_ID
+,ALERT_STATUS
+,TRAN_DATE FORMAT=DATETIME20.
+,DHMS(0,0,0,TRAN_TIME) AS TRAN_TIME FORMAT=DATETIME20.
+,DHMS(0,4,0,0) + rqo_proc_utc_datetime AS ALERT_DATE FORMAT=DATETIME20.
+,DHMS(0,4,0,0) + rqo_proc_utc_datetime AS ALERT_TIME FORMAT=DATETIME20.
+,QUEUE_NAME
+,CUSTOMER_TYPE
+,CUSTOMER_CLASS_CODE
+,CUSTOMER_RIM
+,BENEFICIARY_ACCOUNT_NUMBER
+,TRANSACTION_AMOUNT
+,FIN_NONFIN_IND
+,CMX_TRAN_ID
+,Confirmed_Marked_Flag
+,ACTUAL_ASSESSMENT
+,FINAL_ASSESSMENT
+,%SYSFUNC(DATETIME()) AS LAST_MODIFIED_DATETIME
+from Temp_Rule_Performance;
+quit;
+
+PROC APPEND BASE= VIYA.RULE_PERFORMANCE DATA=WORK.Rule_Performance_INSERT FORCE;
+RUN;
+
+data _null_;
+call symput('dt', cats(put(%sysfunc(datetime()), datetime20.)));
+run;
+
+%put &dt.;
+
+ods excel
+file="/sasshare/RPR_&dt..xlsx"
+options(sheet_name="RPR Report");
+ods escapechar='~';
+ods text="~S={font_size=10pt font_weight=bold}~ Rule Performance Report";
+proc print data=WORK.Rule_Performance_INSERT;
+run;
+ods excel close;
+
+proc datasets library=WORK kill; run; quit;
+
+proc printto;
+run;
