@@ -1,0 +1,41 @@
+/* Define the Excel workbook as a libname */
+libname xlout xlsx "/your/path/report.xlsx";
+
+/* Step 1: Create metadata table */
+data xlout.metadata;
+    length description $200 value $100;
+    description = "Report Name"; value = "My Report"; output;
+    description = "Date Range";  value = "01-Jan-2024 to 31-May-2024"; output;
+    description = "Extraction Date"; value = put(today(), date9.); output;
+run;
+
+/* Step 2: Write main dataset */
+data xlout.txn;
+    set txn;  /* Your big dataset */
+run;
+
+libname xlout clear;
+
+
+filename outcsv "/your/path/report.csv";
+
+data _null_;
+    file outcsv lrecl=32767;
+    
+    /* Step 1: Add metadata lines at top */
+    put "Report Name:,My Report";
+    put "Date Range:,01-Jan-2024 to 31-May-2024";
+    put "Extraction Date:," put(today(), date9.);
+    put;
+
+    /* Step 2: Add column headers */
+    if _n_ = 1 then do;
+        put "col1,col2,col3,..."; /* Add real column names */
+    end;
+run;
+
+data _null_;
+    set txn;
+    file outcsv mod dsd lrecl=32767;
+    put col1 col2 col3 ...;  /* List all columns here */
+run;
